@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#050506">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="AR-хоррор в браузере: призраки появляются в твоей комнате через камеру телефона.">
+  <title>ОНИ ЗДЕСЬ — AR хоррор</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23050506'/%3E%3Cpath d='M9 12l5 2-1 4-4-1zM23 12l-5 2 1 4 4-1z' fill='%23e9f3f3'/%3E%3Cpath d='M12 23l4-2 4 2-4 3z' fill='%23b01a22'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik+Glitch&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body data-screen="menu">
+  <!-- слой 1: видео с задней камеры (или «тёмная комната», если камеры нет) -->
+  <video id="cam" playsinline muted autoplay></video>
+  <div id="room"></div>
+  <div id="dark"></div>
+  <!-- слой 2: 3D-монстр -->
+  <canvas id="gl"></canvas>
+  <!-- слой 3: помехи, виньетка, вспышки -->
+  <canvas id="static"></canvas>
+  <div id="scan"></div>
+  <div id="flash"></div>
+
+  <!-- ========== МЕНЮ ========== -->
+  <section id="menu" class="screen">
+    <header>
+      <h1 class="glitch" data-text="ОНИ ЗДЕСЬ">ОНИ ЗДЕСЬ</h1>
+      <p class="sub">AR-хоррор через камеру твоего телефона</p>
+    </header>
+    <h2 class="label">Кто придёт этой ночью</h2>
+    <div id="cards" class="cards"></div>
+    <h2 class="label">Ночь</h2>
+    <div id="diff" class="seg">
+      <button data-d="easy">Тихая</button>
+      <button data-d="normal">Тёмная</button>
+      <button data-d="hard">Кошмар</button>
+    </div>
+    <label class="check"><input type="checkbox" id="realTorch"> <span>Включать настоящий фонарик телефона</span></label>
+    <button id="startBtn" class="btn big">Впустить в комнату</button>
+    <button id="howBtn" class="btn ghost">Как играть</button>
+    <p class="warn">Скримеры, вспышки и громкие звуки. В наушниках слышно, откуда идут шаги.</p>
+    <p id="secureMsg" class="warn red" hidden>Камера работает только по HTTPS. Открой сайт через GitHub Pages или localhost.</p>
+  </section>
+
+  <!-- ========== ПРАВИЛА ========== -->
+  <section id="how" class="screen">
+    <h2 class="glitch small" data-text="КАК ВЫЖИТЬ">КАК ВЫЖИТЬ</h2>
+    <ol class="rules">
+      <li><b>Встань посреди комнаты</b> и держи телефон перед собой. Поворачивайся всем телом — сцена следует за гироскопом.</li>
+      <li><b>Слушай шаги.</b> Невидимое существо бродит вокруг. Звук слева — оно слева.</li>
+      <li><b>Найди его фонарём.</b> Когда оно затаится, в той стороне пойдут помехи и вибрация. Наведи прицел и держи свет, пока шкала сигнала не заполнится.</li>
+      <li><b>Не отводи взгляд.</b> Обнаруженное, оно какое-то время смотрит на тебя… а потом бросается.</li>
+      <li><b>Шокер — в последний момент.</b> Бей, когда оно уже совсем рядом. Рано — промах, и шокеру нужно время на заряд.</li>
+      <li><b>Береги батарею.</b> Фонарь садится, когда включён, и медленно заряжается, когда выключен.</li>
+      <li>Если не найдёшь его вовремя — оно найдёт тебя само.</li>
+    </ol>
+    <p class="warn">Нет гироскопа (компьютер)? Осматривайся мышью или стрелками, <b>F</b> — фонарь, <b>Пробел</b> — шокер.</p>
+    <button id="howBack" class="btn">Понятно</button>
+  </section>
+
+  <!-- ========== ЗАГРУЗКА ========== -->
+  <section id="loading" class="screen">
+    <div class="loader"></div>
+    <p id="loadText">Открываем дверь…</p>
+  </section>
+
+  <!-- ========== HUD ========== -->
+  <section id="hud" class="screen">
+    <div class="top">
+      <button id="exitBtn" class="icon" aria-label="Выйти">✕</button>
+      <div class="mid">
+        <span id="mName"></span>
+        <span id="pips" class="pips"></span>
+      </div>
+      <div id="battery" aria-label="Батарея"><i></i></div>
+    </div>
+    <p id="camMsg" class="warn red" hidden>Нет доступа к камере — играем в тёмной комнате.</p>
+    <div id="signal"><div class="reticle"></div><div class="bar"></div></div>
+    <p id="hint"></p>
+    <div class="bottom">
+      <button id="torchBtn" class="act"><span class="ico">◢◣</span>Фонарь</button>
+      <button id="recenterBtn" class="icon small" aria-label="Выровнять обзор">⟲</button>
+      <button id="shockBtn" class="act shock"><span class="ico">ϟ</span>Шокер</button>
+    </div>
+    <pre id="debug" hidden></pre>
+  </section>
+
+  <!-- ========== КОНЕЦ ========== -->
+  <section id="over" class="screen">
+    <div id="overBg"></div>
+    <h2 id="overTitle" class="glitch" data-text=""></h2>
+    <p id="overSub"></p>
+    <ul id="overStats"></ul>
+    <button id="retryBtn" class="btn big">Ещё одна ночь</button>
+    <button id="menuBtn" class="btn ghost">В меню</button>
+  </section>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
